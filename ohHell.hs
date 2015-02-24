@@ -53,7 +53,7 @@ gameLoop players StartGame
     = do
     --mapM_ (msgClient flip StcGameStart) players
     _ <- msgClient (head players) StcGameStart
-    gameLoop players $ StartRound NoPass (S.fromList [0,0,0,0]) 1
+    gameLoop players $ StartRound 0 (S.fromList [0,0,0,0]) 1
 
 -- dataflow states, may not need to have them
 gameLoop _players (RoundOver scores)
@@ -79,53 +79,40 @@ gameLoop _players (GameOver scores)
     return $ GameOver scores
 
 -- World controlling events in a round
-gameLoop players (StartRound passDir scores roundNumber)
+gameLoop players (StartRound dealer scores roundNumber)
     = do
     deck <- shuffledDeck
     let deal = fmap unorderPile $ S.take 4 $ S.unfoldr (drawExactly roundNumber) $ S.fromList deck
-    RoundOver round_scores <- gameLoop players $ PassingPhase deal passDir
+    RoundOver round_scores <- gameLoop players $ BiddingPhase deal dealer roundNumber
 
     let new_scores = S.zipWith (+) round_scores scores
     if checkScores new_scores then return $ GameOver new_scores
-    else gameLoop players $ StartRound next_pass_dir new_scores newRoundNumber
+    else gameLoop players $ StartRound nextDealer new_scores newRoundNumber
     where checkScores = F.any (>100)
-          next_pass_dir = case passDir of
-                        PassLeft    -> PassRight
-                        PassRight   -> PassAcross
-                        PassAcross  -> NoPass
-                        NoPass      -> NoPass
           newRoundNumber = roundNumber + 1
+          nextDealer = (dealer + 1) `mod` 4
 
 
-                -- World when trying to pass
-gameLoop players (PassingPhase deal passDir)
+                -- World when trying to bid
+gameLoop players (BiddingPhase board dealer roundNumber)
     = do
-    board <-
-        if passDir == NoPass then return deal else
-        let getValidatedSelection i
-                = do
-                 candCardSet <- msgClient (players!!i) (StcGetPassSelection (deal `S.index` i) passDir)
-                 validate candCardSet
+    bids <- return (S.fromList [1,1,1,1])
+{-        let getValidatedBid i = 1
+              = do
+                 candBid <- 0
+                 validate candBid
                 -- validate $ client (StcGetPassSelection (deal `S.index` i) passDir)
-            validate (CtsPassSelection toPass) = return toPass
+            --validate (CtsPassSelection toPass) = return toPass
             -- TODO would prefer this to be non-stupid
             validate _ = error "need to make this try-catch or somesuch"
-            rotate (x :< xs) =  xs |> x
-            rotate (Empty) =  S.empty
-            rotate _ = error "this is not a sequence"
         in do
-        renderText (Passing (deal `S.index` 0) passDir)
-        s0 <- getValidatedSelection 0
-        s1 <- getValidatedSelection 1
-        s2 <- getValidatedSelection 2
-        s3 <- getValidatedSelection 3
-        let s = S.fromList [s0,s1,s2,s3]
-        let s' = case passDir of
-                NoPass      -> s
-                PassLeft    -> rotate s
-                PassAcross  -> rotate $ rotate s
-                PassRight   -> rotate $ rotate $ rotate s
-        return $ S.zipWith Z.union s' $ S.zipWith (Z.\\) deal s
+        renderText (Bidding (board `S.index` 0))
+        s0 <- getValidatedBid 0
+        s1 <- getValidatedBid 1
+        s2 <- getValidatedBid 2
+        s3 <- getValidatedBid 3
+        return (S.fromList [s0,s1,s2,s3])
+-}
 
     let who_starts = 0 -- TODO make left of dealer
     gameLoop players $ InRound board [NewTrick]
@@ -183,9 +170,3 @@ play card (InRound board _stack (TrickInfo cur_player played scores)) =
     in
         InRound new_board _stack (TrickInfo next_player new_played scores)
 play _ _ = error "world not InRound"
-
-
--- Patterns go at end of file since hlint can't parse them
-pattern Empty   <- (S.viewl -> S.EmptyL)
-pattern x :< xs <- (S.viewl -> x S.:< xs)
--- pattern xs :> x <- (S.viewr -> xs S.:> x)

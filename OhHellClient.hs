@@ -88,7 +88,7 @@ client (StcGetMove hand info) = do
     card <- getMove hand info
     return $ CtsMove card
 
-client (StcGetPassSelection hand _passDir) = do
+client (StcGetBid hand) = do
    -- render $ Passing hand passDir
    cardSet <- getMultiCards 3 hand
    -- do client validation here
@@ -153,7 +153,7 @@ aiclient (StcGetMove hand info@(TrickInfo player trick scores)) = do
                     ]
         Just card -> return $ CtsMove card
 
-aiclient (StcGetPassSelection hand _passDir) = do
+aiclient (StcGetBid hand) = do
     threadDelay 500000 -- sleep 0.5 second
     let cardSet = Z.fromList $ take 3 $ Z.toList hand
     return $ CtsPassSelection cardSet
@@ -168,7 +168,7 @@ aiclient StcGameOver = return CtsDisconnect
 -- and rendering functions that get wrapped up
 -- for gloss
 data RenderInfo = RenderServerState Board Info
-                | Passing Hand PassDir
+                | Bidding Hand
                 | BetweenRounds Scores
                 | RenderInRound Hand Trick Scores
 
@@ -206,7 +206,7 @@ renderText (RenderServerState board (TrickInfo curPlayer _played scores)) = do
     renderBoard board curPlayer
     renderScores scores
 
-renderText (Passing hand _passDir) = renderHand hand
+renderText (Bidding hand) = renderHand hand
 
 renderText (BetweenRounds scores) = renderScores scores
 

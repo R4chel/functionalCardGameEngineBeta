@@ -1,7 +1,6 @@
 module OhHellCommon
     ( Info(..)
     , Effect(..)
-    , PassDir(..)
     , World(..)
     -- type synonyms
     , Scores
@@ -23,14 +22,12 @@ data Effect = Effect (World -> World)
                 | NewTrick
                 | ComputeWinner
 
-data PassDir = PassLeft | PassRight | PassAcross | NoPass deriving (Eq)
-
 -- curPlayer, played so far, scores this round
 data Info = TrickInfo PlayerID Trick Scores
 data World = InRound Board Stack Info
             | StartGame
-            | StartRound PassDir Scores Int
-            | PassingPhase Board PassDir
+            | StartRound PlayerID Scores Int
+            | BiddingPhase Board PlayerID Int
             | RoundOver Scores
             | GameOver Scores
 type Stack = [Effect]
@@ -45,6 +42,6 @@ data ClientToServer = CtsMove Card
                     | CtsAcknowledge
 
 data ServerToClient = StcGetMove Hand Info
-                    | StcGetPassSelection Hand PassDir
+                    | StcGetBid Hand
                     | StcGameStart
                     | StcGameOver

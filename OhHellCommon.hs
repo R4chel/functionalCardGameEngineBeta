@@ -23,7 +23,7 @@ data Effect = Effect (World -> World)
                 | ComputeWinner
 
 -- curPlayer, played so far, scores this round
-data Info = TrickInfo PlayerID Trick Scores
+data Info = TrickInfo PlayerID Trick Scores (Maybe Suit)
 data World = InRound Board Stack Info
             | StartGame
             | StartRound PlayerID Scores Int

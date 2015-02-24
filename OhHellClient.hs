@@ -99,7 +99,7 @@ client StcGameOver = return CtsDisconnect
 getMove :: Hand -> Info -> IO Card
 getMove hand info = do
     card <- getCardFromHand hand
-    let TrickInfo _ trick _ = info in
+    let TrickInfo _ trick _ _ = info in
         if followsSuit hand trick card
         then return card
         else do
@@ -141,7 +141,7 @@ getInput = do
 {- The trivial ai -}
 {- should replace with random choice -}
 aiclient :: ServerToClient -> IO ClientToServer
-aiclient (StcGetMove hand info@(TrickInfo player trick scores)) = do
+aiclient (StcGetMove hand info@(TrickInfo player trick scores _trump)) = do
     threadDelay 1000000 -- sleep 1 second
     case F.find (followsSuit hand trick) $ Z.toList hand of
         Nothing   -> error $ unlines
@@ -197,18 +197,23 @@ renderText (RenderInRound hand played scores) = do
     renderHand hand
     renderScores scores
 
-renderText (RenderServerState board (TrickInfo curPlayer _played scores)) = do
+renderText (RenderServerState board (TrickInfo curPlayer played scores trump)) = do
     -- if we should only be rendering the current players hand then do some checking
     -- the following clears the screen
     putStrLn "\ESC[H\ESC[2J"
 
-    --renderPlay played
+    renderTrump trump
+    renderPlay played
     renderBoard board curPlayer
     renderScores scores
 
 renderText (Bidding hand) = renderHand hand
 
 renderText (BetweenRounds scores) = renderScores scores
+
+renderTrump :: Maybe Suit -> IO ()
+renderTrump Nothing = putStrLn "Trump: None"
+renderTrump (Just trump) = putStrLn $ "Trump: " ++ show trump
 
 renderScores :: Scores -> IO ()
 renderScores scores = mapM_ showScore [0..3]

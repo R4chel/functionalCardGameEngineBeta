@@ -85,11 +85,11 @@ gameLoop players (StartRound dealer scores roundNumber)
     let deal = fmap unorderPile $ S.take 4 $ S.unfoldr (drawExactly roundNumber) $ S.fromList deck
     RoundOver round_scores <- gameLoop players $ BiddingPhase deal dealer roundNumber
 
+    let newRoundNumber = roundNumber + 1
     let new_scores = S.zipWith (+) round_scores scores
-    if checkScores new_scores then return $ GameOver new_scores
+    if checkRound newRoundNumber then return $ GameOver new_scores
     else gameLoop players $ StartRound nextDealer new_scores newRoundNumber
-    where checkScores = F.any (>100)
-          newRoundNumber = roundNumber + 1
+    where checkRound = (> 5) -- TODO don't hard code maybe use a boolean for up/down
           nextDealer = (dealer + 1) `mod` 4
 
 
@@ -114,9 +114,9 @@ gameLoop players (BiddingPhase board dealer roundNumber)
         return (S.fromList [s0,s1,s2,s3])
 -}
 
-    let who_starts = 0 -- TODO make left of dealer
+    let who_starts = (dealer + 1) `mod` 4
     gameLoop players $ InRound board [NewTrick]
-                     $ TrickInfo who_starts S.empty (S.fromList [0,0,0,0])
+                     $ TrickInfo who_starts S.empty (S.fromList [0,0,0,0]) Nothing -- TODO put in trump
 
                 -- World when in middle of round
 gameLoop _players (InRound _board [] _info)
@@ -136,7 +136,7 @@ gameLoop players (InRound board (now:on_stack) info)
         ComputeWinner ->
             -- split new trick into here
             let (w,s) = computeWinner info
-                nextTrick = TrickInfo w S.empty s
+                nextTrick = TrickInfo w S.empty s Nothing -- TODO add trump
                 nextStep = if (>0) . Z.size $ board `S.index` 0
                     then InRound board (NewTrick:on_stack) nextTrick
                     else RoundOver s
@@ -153,20 +153,20 @@ gameLoop players (InRound board (now:on_stack) info)
             gameLoop players $ move world'
 
 curPlayer :: Info -> Int
-curPlayer (TrickInfo p _ _) = p
+curPlayer (TrickInfo p _ _ _) = p
 
 computeWinner :: Info -> (PlayerID, Scores)
-computeWinner (TrickInfo _ played scores) =
+computeWinner (TrickInfo _ played scores _) =
     let winner = trickWinner played Nothing
         new_scores  = S.adjust (+ 1) winner scores
     in
         (winner, new_scores)
 
 play :: Card -> World -> World
-play card (InRound board _stack (TrickInfo cur_player played scores)) =
+play card (InRound board _stack (TrickInfo cur_player played scores trump)) =
     let new_board = S.adjust (Z.delete card) cur_player board
         new_played = played |> card
         next_player = (cur_player + 1) `mod` 4
     in
-        InRound new_board _stack (TrickInfo next_player new_played scores)
+        InRound new_board _stack (TrickInfo next_player new_played scores trump)
 play _ _ = error "world not InRound"

@@ -29,7 +29,7 @@ data PassDir = PassLeft | PassRight | PassAcross | NoPass deriving (Eq)
 data Info = TrickInfo PlayerID Trick Scores
 data World = InRound Board Stack Info
             | StartGame
-            | StartRound PassDir Scores
+            | StartRound PassDir Scores Int
             | PassingPhase Board PassDir
             | RoundOver Scores
             | GameOver Scores

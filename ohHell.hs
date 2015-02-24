@@ -53,7 +53,7 @@ gameLoop players StartGame
     = do
     --mapM_ (msgClient flip StcGameStart) players
     _ <- msgClient (head players) StcGameStart
-    gameLoop players $ StartRound PassLeft $ S.fromList [0,0,0,0]
+    gameLoop players $ StartRound NoPass (S.fromList [0,0,0,0]) 1
 
 -- dataflow states, may not need to have them
 gameLoop _players (RoundOver scores)
@@ -79,21 +79,22 @@ gameLoop _players (GameOver scores)
     return $ GameOver scores
 
 -- World controlling events in a round
-gameLoop players (StartRound passDir scores)
+gameLoop players (StartRound passDir scores roundNumber)
     = do
     deck <- shuffledDeck
-    let deal = fmap (unorderPile) $ S.unfoldr (drawExactly 13) $ S.fromList deck
+    let deal = fmap unorderPile $ S.take 4 $ S.unfoldr (drawExactly roundNumber) $ S.fromList deck
     RoundOver round_scores <- gameLoop players $ PassingPhase deal passDir
 
     let new_scores = S.zipWith (+) round_scores scores
     if checkScores new_scores then return $ GameOver new_scores
-    else gameLoop players $ StartRound next_pass_dir new_scores
+    else gameLoop players $ StartRound next_pass_dir new_scores newRoundNumber
     where checkScores = F.any (>100)
           next_pass_dir = case passDir of
                         PassLeft    -> PassRight
                         PassRight   -> PassAcross
                         PassAcross  -> NoPass
-                        NoPass      -> PassLeft
+                        NoPass      -> NoPass
+          newRoundNumber = roundNumber + 1
 
 
                 -- World when trying to pass
@@ -126,7 +127,7 @@ gameLoop players (PassingPhase deal passDir)
                 PassRight   -> rotate $ rotate $ rotate s
         return $ S.zipWith Z.union s' $ S.zipWith (Z.\\) deal s
 
-    let who_starts = fromJust $ Z.member (Card Clubs 2) `S.findIndexL` board
+    let who_starts = 0 -- TODO make left of dealer
     gameLoop players $ InRound board [NewTrick]
                      $ TrickInfo who_starts S.empty (S.fromList [0,0,0,0])
 

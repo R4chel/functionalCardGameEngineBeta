@@ -1,4 +1,4 @@
-module HeartsCommon
+module OhHellCommon
     ( Info(..)
     , Effect(..)
     , PassDir(..)
@@ -11,8 +11,6 @@ module HeartsCommon
     , Message(..)
     , ClientToServer(..)
     , ServerToClient(..)
-    -- Game Logic (client can access)
-    , isValidPlay
     ) where
 import PlayingCards
 import Data.Set (Set)
@@ -27,8 +25,8 @@ data Effect = Effect (World -> World)
 
 data PassDir = PassLeft | PassRight | PassAcross | NoPass deriving (Eq)
 
--- curPlayer, played so far, scores this round, hearts broken
-data Info = TrickInfo PlayerID Trick Scores Bool
+-- curPlayer, played so far, scores this round
+data Info = TrickInfo PlayerID Trick Scores
 data World = InRound Board Stack Info
             | StartGame
             | StartRound PassDir Scores
@@ -50,19 +48,3 @@ data ServerToClient = StcGetMove Hand Info
                     | StcGetPassSelection Hand PassDir
                     | StcGameStart
                     | StcGameOver
-
--- This seems like an ideal thing to practice using quickCheck with
--- namely, no matter what the trick is, should always have at least one valid play
-isValidPlay :: Hand -> Info -> Card -> Bool
-isValidPlay hand _info@(TrickInfo _ played _ heartsBroken) card =
-    let playIf p        = p card || F.all (not . p) hand
-        on_lead         = S.null played
-        isFirstTrick    = is2c $ S.index played 0
-        matchesLead c   = _suit c == _suit (S.index played 0)
-        is2c c          = c == Card {_suit = Clubs, _rank = 2}
-        isGarbage c     = _suit c == Hearts || c == Card {_suit = Spades, _rank = 12}
-    in
-    playIf is2c &&
-        if on_lead
-        then (not .  isGarbage) card || heartsBroken ||  F.all isGarbage hand
-        else playIf matchesLead && not (isGarbage card && isFirstTrick)

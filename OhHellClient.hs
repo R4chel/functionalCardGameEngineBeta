@@ -1,4 +1,4 @@
-module HeartsClient
+module OhHellClient
     ( constructGUIPlayer
     , constructPlayer
     , client
@@ -8,7 +8,7 @@ module HeartsClient
     , renderText
     )
     where
-import HeartsCommon
+import OhHellCommon
 import PlayingCards
 import qualified Data.Set as Z
 import qualified Data.Sequence as S
@@ -99,11 +99,12 @@ client StcGameOver = return CtsDisconnect
 getMove :: Hand -> Info -> IO Card
 getMove hand info = do
     card <- getCardFromHand hand
-    if isValidPlay hand info card
-    then return card
-    else do
-        putStrLn "Illegal move: must follow suit"
-        getMove hand info
+    let TrickInfo _ trick _ = info in
+        if followsSuit hand trick card
+        then return card
+        else do
+            putStrLn "Illegal move: must follow suit"
+            getMove hand info
 
 getMultiCards :: Int -> Hand -> IO (Z.Set Card)
 getMultiCards 0 _ = return Z.empty
@@ -140,14 +141,13 @@ getInput = do
 {- The trivial ai -}
 {- should replace with random choice -}
 aiclient :: ServerToClient -> IO ClientToServer
-aiclient (StcGetMove hand info@(TrickInfo player trick scores heartsbroken)) = do
+aiclient (StcGetMove hand info@(TrickInfo player trick scores)) = do
     threadDelay 1000000 -- sleep 1 second
-    case F.find (isValidPlay hand info) $ Z.toList hand of
-        Nothing   -> error $ unlines 
+    case F.find (followsSuit hand trick) $ Z.toList hand of
+        Nothing   -> error $ unlines
                     ["apparently cannot play card"
                     , show hand
                     , show trick
-                    , show heartsbroken
                     , show player
                     , show scores
                     ]
@@ -180,7 +180,7 @@ _render _rinfo = undefined
         leftOpp   = renderHand pos dir hand
         rightOpp  = renderHand pos dir hand
         acrossOpp = renderHand pos dir hand
-    in 
+    in
     Pictures [playArea, handArea, leftOpp, rightOpp, acrossOpp, debugArea]-}
 
 --------
@@ -197,7 +197,7 @@ renderText (RenderInRound hand played scores) = do
     renderHand hand
     renderScores scores
 
-renderText (RenderServerState board (TrickInfo curPlayer _played scores _)) = do
+renderText (RenderServerState board (TrickInfo curPlayer _played scores)) = do
     -- if we should only be rendering the current players hand then do some checking
     -- the following clears the screen
     putStrLn "\ESC[H\ESC[2J"
@@ -233,4 +233,3 @@ colorize :: [Int] -> String -> String
 colorize options str = "\ESC["
                         ++ intercalate ";" [show i | i <-options]
                         ++ "m" ++ str ++ "\ESC[0m"
-

@@ -5,8 +5,8 @@
 -- {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 import PlayingCards
-import HeartsCommon
-import HeartsClient
+import OhHellCommon
+import OhHellClient
 import qualified Data.Set as Z
 import Data.Sequence ((|>), (<|))
 import qualified Data.Sequence as S
@@ -39,7 +39,7 @@ main = do
         p1 <- constructPlayer aiclient
         p2 <- constructPlayer aiclient
         p3 <- constructPlayer aiclient
-        _renderer <- constructGUIPlayer
+        --_renderer <- constructGUIPlayer
         void $ gameLoop [p0,p1,p2,p3] StartGame
 
 msgClient :: Player -> ServerToClient -> IO ClientToServer
@@ -128,7 +128,7 @@ gameLoop players (PassingPhase deal passDir)
 
     let who_starts = fromJust $ Z.member (Card Clubs 2) `S.findIndexL` board
     gameLoop players $ InRound board [NewTrick]
-                     $ TrickInfo who_starts S.empty (S.fromList [0,0,0,0]) False
+                     $ TrickInfo who_starts S.empty (S.fromList [0,0,0,0])
 
                 -- World when in middle of round
 gameLoop _players (InRound _board [] _info)
@@ -147,8 +147,8 @@ gameLoop players (InRound board (now:on_stack) info)
             -- 4x get_input : computeWinner : NewTrick
         ComputeWinner ->
             -- split new trick into here
-            let (w,s,b) = computeWinner info
-                nextTrick = TrickInfo w S.empty s b
+            let (w,s) = computeWinner info
+                nextTrick = TrickInfo w S.empty s
                 nextStep = if (>0) . Z.size $ board `S.index` 0
                     then InRound board (NewTrick:on_stack) nextTrick
                     else RoundOver s
@@ -165,28 +165,22 @@ gameLoop players (InRound board (now:on_stack) info)
             gameLoop players $ move world'
 
 curPlayer :: Info -> Int
-curPlayer (TrickInfo p _ _ _) = p
+curPlayer (TrickInfo p _ _) = p
 
-computeWinner :: Info -> (PlayerID, Scores, Bool)
-computeWinner (TrickInfo _ played scores broken) =
+computeWinner :: Info -> (PlayerID, Scores)
+computeWinner (TrickInfo _ played scores) =
     let winner = trickWinner played Nothing
-        pts (Card s r) | s==Hearts = 1
-                       | r==12 && s==Spades = 13
-                       | otherwise = 0
-        trickVal    = F.sum $ fmap pts played
-        new_scores  = S.adjust (+ trickVal) winner scores
-        isHeart c   = _suit c == Hearts
-        broken'     = broken || F.foldr ((||).isHeart) False played
+        new_scores  = S.adjust (+ 1) winner scores
     in
-        (winner, new_scores, broken')
+        (winner, new_scores)
 
 play :: Card -> World -> World
-play card (InRound board _stack (TrickInfo cur_player played scores bool)) =
+play card (InRound board _stack (TrickInfo cur_player played scores)) =
     let new_board = S.adjust (Z.delete card) cur_player board
         new_played = played |> card
         next_player = (cur_player + 1) `mod` 4
     in
-        InRound new_board _stack (TrickInfo next_player new_played scores bool)
+        InRound new_board _stack (TrickInfo next_player new_played scores)
 play _ _ = error "world not InRound"
 
 

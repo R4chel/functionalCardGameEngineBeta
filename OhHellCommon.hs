@@ -27,7 +27,7 @@ data Info = TrickInfo PlayerID Trick Scores (Maybe Suit)
 data World = InRound Board Stack Info
             | StartGame
             | StartRound PlayerID Scores Int
-            | BiddingPhase Board PlayerID Int
+            | BiddingPhase Board PlayerID Int (Maybe Suit)
             | RoundOver Scores
             | GameOver Scores
 type Stack = [Effect]

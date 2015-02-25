@@ -83,20 +83,22 @@ gameLoop players (StartRound dealer scores roundNumber)
     = do
     deck <- shuffledDeck
     let deal = fmap unorderPile $ S.take 4 $ S.unfoldr (drawExactly roundNumber) $ S.fromList deck
-    RoundOver round_scores <- gameLoop players $ BiddingPhase deal dealer roundNumber
+    let trumpCard = F.find (const $ True) $ S.take 1 $ S.drop (4*roundNumber) $ S.fromList deck
+    let trump = fmap _suit trumpCard
+    RoundOver roundScores <- gameLoop players $ BiddingPhase deal dealer roundNumber trump
 
-    let newRoundNumber = roundNumber + 1
-    let new_scores = S.zipWith (+) round_scores scores
-    if checkRound newRoundNumber then return $ GameOver new_scores
-    else gameLoop players $ StartRound nextDealer new_scores newRoundNumber
+    let newScores = S.zipWith (+) roundScores scores
+    if checkRound newRoundNumber then return $ GameOver newScores
+    else gameLoop players $ StartRound nextDealer newScores newRoundNumber
     where checkRound = (> 5) -- TODO don't hard code maybe use a boolean for up/down
           nextDealer = (dealer + 1) `mod` 4
+          newRoundNumber = roundNumber + 1
 
 
                 -- World when trying to bid
-gameLoop players (BiddingPhase board dealer roundNumber)
+gameLoop players (BiddingPhase board dealer _roundNumber trump)
     = do
-    bids <- return (S.fromList [1,1,1,1])
+    _bids <- return (S.fromList [1,1,1,1])  --TODO actually get bids
 {-        let getValidatedBid i = 1
               = do
                  candBid <- 0
@@ -116,7 +118,7 @@ gameLoop players (BiddingPhase board dealer roundNumber)
 
     let who_starts = (dealer + 1) `mod` 4
     gameLoop players $ InRound board [NewTrick]
-                     $ TrickInfo who_starts S.empty (S.fromList [0,0,0,0]) Nothing -- TODO put in trump
+                     $ TrickInfo who_starts S.empty (S.fromList [0,0,0,0]) trump -- TODO put in trump
 
                 -- World when in middle of round
 gameLoop _players (InRound _board [] _info)
@@ -156,8 +158,8 @@ curPlayer :: Info -> Int
 curPlayer (TrickInfo p _ _ _) = p
 
 computeWinner :: Info -> (PlayerID, Scores)
-computeWinner (TrickInfo _ played scores _) =
-    let winner = trickWinner played Nothing
+computeWinner (TrickInfo _ played scores trump) =
+    let winner = trickWinner played trump
         new_scores  = S.adjust (+ 1) winner scores
     in
         (winner, new_scores)

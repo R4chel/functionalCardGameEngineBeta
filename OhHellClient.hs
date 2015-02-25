@@ -167,7 +167,7 @@ aiclient StcGameOver = return CtsDisconnect
 -- Render type
 -- and rendering functions that get wrapped up
 -- for gloss
-data RenderInfo = RenderServerState Board Info
+data RenderInfo = RenderServerState Board Info Scores
                 | Bidding Hand
                 | BetweenRounds Scores
                 | RenderInRound Hand Trick Scores
@@ -197,7 +197,7 @@ renderText (RenderInRound hand played scores) = do
     renderHand hand
     renderScores scores
 
-renderText (RenderServerState board (TrickInfo curPlayer played scores trump)) = do
+renderText (RenderServerState board (TrickInfo curPlayer played scores trump) bids) = do
     -- if we should only be rendering the current players hand then do some checking
     -- the following clears the screen
     putStrLn "\ESC[H\ESC[2J"
@@ -205,7 +205,7 @@ renderText (RenderServerState board (TrickInfo curPlayer played scores trump)) =
     renderTrump trump
     renderPlay played
     renderBoard board curPlayer
-    renderScores scores
+    renderBidsAndTricks bids scores
 
 renderText (Bidding hand) = renderHand hand
 
@@ -214,6 +214,11 @@ renderText (BetweenRounds scores) = renderScores scores
 renderTrump :: Maybe Suit -> IO ()
 renderTrump Nothing = putStrLn "Trump: None"
 renderTrump (Just trump) = putStrLn $ "Trump: " ++ show trump
+
+renderBidsAndTricks :: Scores -> Scores  -> IO ()
+renderBidsAndTricks bids tricks = mapM_ showScore [0..3]
+    where showScore  i = putStrLn $ showPlayer i ++ " Bid:" ++ show (bids `S.index` i) ++ " Tricks:" ++ show (tricks `S.index` i)
+          showPlayer i = {- colorize  [44 | i==curPlayer] $ -} "Player " ++ show i
 
 renderScores :: Scores -> IO ()
 renderScores scores = mapM_ showScore [0..3]

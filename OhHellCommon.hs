@@ -22,13 +22,13 @@ data Effect = Effect (World -> World)
                 | NewTrick
                 | ComputeWinner
 
--- curPlayer, played so far, scores this round
+-- curPlayer, played so far, scores this round, trump
 data Info = TrickInfo PlayerID Trick Scores (Maybe Suit)
-data World = InRound Board Stack Info
+data World = InRound Board Stack Info Scores
             | StartGame
             | StartRound PlayerID Scores Int
             | BiddingPhase Board PlayerID Int (Maybe Suit)
-            | RoundOver Scores
+            | RoundOver Scores Scores
             | GameOver Scores
 type Stack = [Effect]
 type Scores = Seq Int

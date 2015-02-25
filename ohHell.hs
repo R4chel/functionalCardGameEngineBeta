@@ -56,20 +56,14 @@ gameLoop players StartGame
     gameLoop players $ StartRound 0 (S.fromList [0,0,0,0]) 1
 
 -- dataflow states, may not need to have them
-gameLoop _players (RoundOver scores)
+gameLoop _players (RoundOver scores bids)
     = do
     putStrLn "Round Over"
     -- check for shooting the moon
-    let moon_shot = 26 `S.elemIndexL` scores
-    scores' <-
-        case moon_shot of
-            Nothing -> return scores
-            Just p -> do
-                putStrLn $ "Player " ++ show p ++ " shot the moon"
-                return $ fmap (26-) scores
-    -- send info to clients
-    renderText (BetweenRounds scores)
-    return $ RoundOver scores'
+    let findScore s b = if (==) s b then 10 + b else 0
+    let scores' = S.zipWith findScore scores bids
+    renderText (BetweenRounds scores')
+    return $ RoundOver scores' bids
 
 gameLoop _players (GameOver scores)
     = do
@@ -85,7 +79,7 @@ gameLoop players (StartRound dealer scores roundNumber)
     let deal = fmap unorderPile $ S.take 4 $ S.unfoldr (drawExactly roundNumber) $ S.fromList deck
     let trumpCard = F.find (const $ True) $ S.take 1 $ S.drop (4*roundNumber) $ S.fromList deck
     let trump = fmap _suit trumpCard
-    RoundOver roundScores <- gameLoop players $ BiddingPhase deal dealer roundNumber trump
+    RoundOver roundScores _bids <- gameLoop players $ BiddingPhase deal dealer roundNumber trump
 
     let newScores = S.zipWith (+) roundScores scores
     if checkRound newRoundNumber then return $ GameOver newScores
@@ -98,7 +92,7 @@ gameLoop players (StartRound dealer scores roundNumber)
                 -- World when trying to bid
 gameLoop players (BiddingPhase board dealer _roundNumber trump)
     = do
-    _bids <- return (S.fromList [1,1,1,1])  --TODO actually get bids
+    bids <- return (S.fromList [1,1,1,1])  --TODO actually get bids
 {-        let getValidatedBid i = 1
               = do
                  candBid <- 0
@@ -117,38 +111,36 @@ gameLoop players (BiddingPhase board dealer _roundNumber trump)
 -}
 
     let who_starts = (dealer + 1) `mod` 4
-    gameLoop players $ InRound board [NewTrick]
-                     $ TrickInfo who_starts S.empty (S.fromList [0,0,0,0]) trump -- TODO put in trump
-
+    gameLoop players $ InRound board [NewTrick] (TrickInfo who_starts S.empty (S.fromList [0,0,0,0]) trump) bids
                 -- World when in middle of round
-gameLoop _players (InRound _board [] _info)
+gameLoop _players (InRound _board [] _info _bids)
     = error "stack is empty"
     -- Fix this case
-gameLoop players (InRound board (now:on_stack) info)
+gameLoop players (InRound board (now:on_stack) info bids)
     = do
-    renderText (RenderServerState board info)
-    let world' = InRound board on_stack info
+    renderText (RenderServerState board info bids)
+    let world' = InRound board on_stack info bids
     -- need to guarantee that stack is never empty
     case now of
         NewTrick ->
-            gameLoop players $ InRound board (GetInput:GetInput:GetInput:GetInput:ComputeWinner:on_stack) info
+            gameLoop players $ InRound board (GetInput:GetInput:GetInput:GetInput:ComputeWinner:on_stack) info bids
             -- consider computing winner at end of trick
             -- as new effect so
             -- 4x get_input : computeWinner : NewTrick
         ComputeWinner ->
             -- split new trick into here
             let (w,s) = computeWinner info
-                nextTrick = TrickInfo w S.empty s Nothing -- TODO add trump
+                nextTrick = TrickInfo w S.empty s (trumpSuit info)
                 nextStep = if (>0) . Z.size $ board `S.index` 0
-                    then InRound board (NewTrick:on_stack) nextTrick
-                    else RoundOver s
+                    then InRound board (NewTrick:on_stack) nextTrick bids
+                    else RoundOver s bids
             in
             gameLoop players nextStep
         GetInput -> do
             let hand = board `S.index` curPlayer info
             move <- msgClient (players!!curPlayer info) (StcGetMove hand info)
             let player_input = validate move
-            gameLoop players $ InRound board (player_input:on_stack) info
+            gameLoop players $ InRound board (player_input:on_stack) info bids
             where validate (CtsMove move) = Effect (play move)
                   validate _ = error "recieved wrong type of message"
         Effect move ->
@@ -156,6 +148,9 @@ gameLoop players (InRound board (now:on_stack) info)
 
 curPlayer :: Info -> Int
 curPlayer (TrickInfo p _ _ _) = p
+
+trumpSuit :: Info -> Maybe Suit
+trumpSuit (TrickInfo _ _ _ s) = s
 
 computeWinner :: Info -> (PlayerID, Scores)
 computeWinner (TrickInfo _ played scores trump) =
@@ -165,10 +160,10 @@ computeWinner (TrickInfo _ played scores trump) =
         (winner, new_scores)
 
 play :: Card -> World -> World
-play card (InRound board _stack (TrickInfo cur_player played scores trump)) =
+play card (InRound board _stack (TrickInfo cur_player played scores trump) bids) =
     let new_board = S.adjust (Z.delete card) cur_player board
         new_played = played |> card
         next_player = (cur_player + 1) `mod` 4
     in
-        InRound new_board _stack (TrickInfo next_player new_played scores trump)
+        InRound new_board _stack (TrickInfo next_player new_played scores trump) bids
 play _ _ = error "world not InRound"
